@@ -1,0 +1,20 @@
+data:
+  dataset: "CIFAR10"
+  data_dir: "./data"
+  num_workers: 2
+
+model:
+  architecture: "resnet18"
+  num_classes: 10
+  pretrained: true
+
+training:
+  batch_size: 64
+  epochs: 100
+  learning_rate: 0.01
+  device: "cuda"
+  early_stopping_patience: 3
+
+output:
+  checkpoint_dir: "./checkpoints"
+  model_name: "best_model.pth"
