@@ -3,6 +3,7 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from pathlib import Path
 from PIL import Image
 import torch
 import torch.nn.functional as F
@@ -29,29 +30,32 @@ transform = transforms.Compose([
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global model
-    config_path = os.path.join("configs", "training_config.yaml")
 
-    if os.path.exists(config_path):
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
+    config_path = Path("/app/configs/training_config.yaml")
+    if not config_path.exists():
+        config_path = Path("configs/training_config.yaml")
 
-        cfg_train = config["training"]
-        cfg_model = config["model"]
-        checkpoint_path = os.path.join(
-            cfg_train["checkpoint_dir"], cfg_train["checkpoint_filename"]
-        )
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
 
-        if os.path.exists(checkpoint_path):
-            model = build_model(
-                num_classes=cfg_model["num_classes"],
-                pretrained=False,
-                in_channels=3,
-            )
-            checkpoint = torch.load(checkpoint_path, map_location=device)
-            model.load_state_dict(checkpoint["model_state_dict"])
-            model.to(device).eval()
-        else:
-            print(f"Warning: Checkpoint not found at {checkpoint_path}")
+    checkpoint_dir = Path(config["output"]["checkpoint_dir"])
+    model_name = config["output"].get(
+        "model_name",
+        config["output"].get("checkpoint_filename", "best_model.pth"),
+    )
+    checkpoint_path = checkpoint_dir / model_name
+
+    if checkpoint_path.exists():
+        model = build_model(
+            num_classes=config["model"]["num_classes"],
+        ).to(device)
+
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        model.eval()
+        print(f"Successfully loaded model from {checkpoint_path}")
+    else:
+        print(f"Warning: Checkpoint file not found at {checkpoint_path}")
 
     yield
 
@@ -92,6 +96,7 @@ async def predict(file: UploadFile = File(...)):
             status_code=400, detail=f"Failed to process image: {str(e)}"
         )
 
+# curl.exe -X POST "http://localhost:8000/predict" -F "file=@C:\Users\Alan Koshy\Downloads\OIP-999065008.jpg"
 
 if __name__ == "__main__":
     import uvicorn
