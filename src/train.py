@@ -24,11 +24,6 @@ class EarlyStopping:
         self.counter += 1
         return self.counter >= self.patience
 
-
-def log_json(data: dict):
-    print(json.dumps(data), flush=True)
-
-
 def run_epoch(model, dataloader, criterion, optimizer=None, device="cpu"):
     is_train = optimizer is not None
     model.train() if is_train else model.eval()
@@ -61,46 +56,52 @@ def train():
     with open(os.path.join("configs", "training_config.yaml"), "r") as f:
         config = yaml.safe_load(f)
 
-    cfg_train = config["training"]
-    cfg_data = config["data"]
-    cfg_model = config["model"]
-    cfg_es = config["early_stopping"]
+    cfg_train = config.get("training", {})
+    cfg_data = config.get("data", {})
+    cfg_model = config.get("model", {})
+    cfg_output = config.get("output", {})
 
-    device = torch.device(cfg_train["device"] if torch.cuda.is_available() else "cpu")
-    in_channels = 1 if cfg_data["dataset"] == "FashionMNIST" else 3
+    device = torch.device(cfg_train.get("device", "cuda") if torch.cuda.is_available() else "cpu")
 
     train_loader, val_loader = get_dataloaders(
-        dataset_name=cfg_data["dataset"],
-        data_dir=cfg_data["data_dir"],
-        batch_size=cfg_train["batch_size"],
-        num_workers=cfg_data["num_workers"],
+        data_dir=cfg_data.get("data_dir", "./data"),
+        batch_size=cfg_train.get("batch_size", 64),
+        num_workers=cfg_data.get("num_workers", 2),
     )
 
     model = build_model(
-        num_classes=cfg_model["num_classes"],
-        pretrained=cfg_model["pretrained"],
-        in_channels=in_channels,
+        num_classes=cfg_model.get("num_classes", 10),
+        pretrained=cfg_model.get("pretrained", True),
+        in_channels=3,
     ).to(device)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=cfg_train["learning_rate"])
-    early_stopper = EarlyStopping(patience=cfg_es["patience"], min_delta=cfg_es["min_delta"])
+    optimizer = optim.Adam(model.parameters(), lr=cfg_train.get("learning_rate", 0.01))
+    
+    # Read patience directly from cfg_train
+    early_stopper = EarlyStopping(
+        patience=cfg_train.get("early_stopping_patience", 3),
+        min_delta=cfg_train.get("early_stopping_min_delta", 0.001),
+    )
 
-    os.makedirs(cfg_train["checkpoint_dir"], exist_ok=True)
-    checkpoint_path = os.path.join(cfg_train["checkpoint_dir"], cfg_train["checkpoint_filename"])
+    # Read checkpoint paths from cfg_output
+    checkpoint_dir = cfg_output.get("checkpoint_dir", "./checkpoints")
+    checkpoint_file = cfg_output.get("model_name", "best_model.pth")
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    checkpoint_path = os.path.join(checkpoint_dir, checkpoint_file)
     best_val_loss = float("inf")
 
     for epoch in range(1, cfg_train["epochs"] + 1):
         train_loss, train_acc = run_epoch(model, train_loader, criterion, optimizer, device)
         val_loss, val_acc = run_epoch(model, val_loader, criterion, device=device)
 
-        log_json({
+        print(json.dumps({
             "epoch": epoch,
             "train_loss": round(train_loss, 4),
             "train_accuracy": round(train_acc, 4),
             "val_loss": round(val_loss, 4),
             "val_accuracy": round(val_acc, 4),
-        })
+        }))
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -113,7 +114,7 @@ def train():
             }, checkpoint_path)
 
         if early_stopper.step(val_loss):
-            log_json({"event": "early_stopping_triggered", "epoch": epoch})
+            print(json.dumps({"event": "early_stopping_triggered", "epoch": epoch}))
             break
 
 

@@ -1,7 +1,7 @@
 data:
   dataset: "CIFAR10"
   data_dir: "./data"
-  num_workers: 2
+  num_workers: 8
 
 model:
   architecture: "resnet18"
@@ -9,8 +9,8 @@ model:
   pretrained: true
 
 training:
-  batch_size: 64
-  epochs: 100
+  batch_size: 128
+  epochs: 20
   learning_rate: 0.01
   device: "cuda"
   early_stopping_patience: 3
