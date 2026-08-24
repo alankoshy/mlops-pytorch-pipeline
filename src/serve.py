@@ -10,7 +10,8 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import yaml
 
-from model import build_model
+from src.model import build_model
+
 
 model = None
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -31,9 +32,13 @@ transform = transforms.Compose([
 async def lifespan(app: FastAPI):
     global model
 
-    config_path = Path("/app/configs/training_config.yaml")
-    if not config_path.exists():
-        config_path = Path("configs/training_config.yaml")
+    env_config = os.environ.get("CONFIG_PATH")
+    if env_config and Path(env_config).exists():
+        config_path = Path(env_config)
+    else:
+        config_path = Path("/app/configs/training_config.yaml")
+        if not config_path.exists():
+            config_path = Path("configs/training_config.yaml")
 
     with open(config_path) as f:
         config = yaml.safe_load(f)
@@ -71,14 +76,15 @@ def health_check():
 
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict(image: UploadFile = File(None)):
+
     if model is None:
         raise HTTPException(status_code=503, detail="Model checkpoint is not loaded.")
 
     try:
-        image_bytes = await file.read()
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        tensor = transform(image).unsqueeze(0).to(device)
+        image_bytes = await image.read()
+        image_obj = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        tensor = transform(image_obj).unsqueeze(0).to(device)
 
         with torch.no_grad():
             outputs = model(tensor)
@@ -96,7 +102,8 @@ async def predict(file: UploadFile = File(...)):
             status_code=400, detail=f"Failed to process image: {str(e)}"
         )
 
-# curl.exe -X POST "http://localhost:8000/predict" -F "file=@C:\Users\Alan Koshy\Downloads\OIP-999065008.jpg"
+
+# curl.exe -X POST "http://localhost:8000/predict" -F "image=@C:\Users\Alan Koshy\Downloads\OIP-999065008.jpg"
 
 if __name__ == "__main__":
     import uvicorn
