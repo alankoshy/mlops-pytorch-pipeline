@@ -5,8 +5,8 @@ import torch.nn as nn
 import torch.optim as optim
 import yaml
 
-from dataset import get_dataloaders
-from model import build_model
+from src.dataset import get_dataloaders
+from src.model import build_model
 
 
 class EarlyStopping:
@@ -53,8 +53,10 @@ def run_epoch(model, dataloader, criterion, optimizer=None, device="cpu"):
 
 
 def train():
-    with open(os.path.join("configs", "training_config.yaml"), "r") as f:
+    config_path = os.environ.get("CONFIG_PATH", os.path.join("configs", "training_config.yaml"))
+    with open(config_path, "r") as f:
         config = yaml.safe_load(f)
+
 
     cfg_train = config.get("training", {})
     cfg_data = config.get("data", {})
@@ -72,7 +74,6 @@ def train():
     model = build_model(
         num_classes=cfg_model.get("num_classes", 10),
         pretrained=cfg_model.get("pretrained", True),
-        in_channels=3,
     ).to(device)
 
     criterion = nn.CrossEntropyLoss()

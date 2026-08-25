@@ -1,7 +1,7 @@
 import torch.nn as nn
 from torchvision import models
 
-def get_model(num_classes=10, pretrained=True) -> nn.Module:
+def build_model(num_classes=10, pretrained=True) -> nn.Module:
     weights = 'DEFAULT' if pretrained else None
     model = models.resnet18(weights=weights)
 
