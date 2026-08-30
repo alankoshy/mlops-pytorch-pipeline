@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: training-job
+  namespace: ml-training
+  labels:
+    project: mlops-pytorch-pipeline
+    app: training-job
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        project: mlops-pytorch-pipeline
+        app: training-job
+    spec:
+      restartPolicy: Never
+      # nodeSelector:
+      #   accelerator: nvidia-gpu
+      # tolerations:
+      #   - key: "nvidia.com/gpu"
+      #     operator: "Exists"
+      #     effect: "NoSchedule"
+      containers:
+        - name: training
+          image: localhost/mlops-pytorch-pipeline-train:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CONFIG_PATH
+              value: /app/configs/training_config.yaml
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/configs
+            - name: data-volume
+              mountPath: /app/data
+            - name: checkpoint-volume
+              mountPath: /app/checkpoints
+      volumes:
+        - name: config-volume
+          configMap:
+            name: training-config
+        - name: data-volume
+          hostPath:
+            path: /tmp/ml-data
+            type: DirectoryOrCreate
+        - name: checkpoint-volume
+          hostPath:
+            path: /tmp/ml-checkpoints
+            type: DirectoryOrCreate
